@@ -22,7 +22,7 @@ Do not rewrite discovery or the canvas and do not invent physical links.
 - Add backend `api_v1` handlers/DTO validation, inventory projection queries,
   topology repositories, layout service, state projector, and bounded event
   stream.
-- Add frontend API client, live inventory store, SSE reconnect controller,
+- Add frontend API client, live inventory store, fetch-stream SSE reconnect controller,
   node mapper, accessible mode banner, evidence panel, and layout persistence
   queue.
 
@@ -76,6 +76,10 @@ The complete proposed wire contract is in `API_V1.md`.
   diagnostic, discovery, and layout services.
 - Keep tokens out of URLs after bootstrap, local storage, event payloads, export
   files, and telemetry.
+- Stream SSE through authenticated same-origin `fetch()` with the capability
+  header and a `ReadableStream`; native `EventSource` is excluded because it
+  cannot attach that header. Reconnection, jitter, `Last-Event-ID`, parsing,
+  cancellation, and resync behavior require focused tests.
 
 Threat regressions must cover missing/wrong token, hostile Host, hostile/missing
 Origin on writes, DNS-rebinding shapes, oversized/deep bodies, invalid cursors,
@@ -139,12 +143,16 @@ approved by this plan.
 
 ## Delivery sequence and stop gates
 
-1. Migration 7 and repository/state projector tests.
-2. Authenticated read-only inventory/topology API and contract tests.
-3. React mode boundary and read-only live node rendering.
+1. Authenticated read-only inventory API and contract tests, with no schema
+   change or active discovery change.
+2. React mode boundary and read-only rendering of actual inventory devices,
+   keyed only by persisted device IDs. This is the first implementation
+   milestone and must ship as independently reviewable work.
+3. Migration 7 and repository/state projector tests for later topology/layout
+   persistence.
 4. Persistent layout writes with concurrency controls.
 5. Evidence-backed edges and explicit unknown-topology presentation.
-6. SSE incremental updates and reconnect/resync behavior.
+6. Authenticated fetch-stream SSE updates and reconnect/resync behavior.
 7. Accessibility, performance, security regression, compatibility, and release
    verification.
 

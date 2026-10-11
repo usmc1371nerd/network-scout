@@ -16,6 +16,11 @@ foundation.
 - The compatibility launch token is supplied in `X-Network-Scout-Token`. The
   header name may change only with a compatibility transition and tests. Tokens
   never appear in query strings, logs, response bodies, or persistent inventory.
+- Browser clients use authenticated `fetch()` requests for both JSON and the
+  event stream. They must not use native `EventSource`: its constructor cannot
+  attach the required capability header. The stream remains SSE on the wire,
+  but the client reads and parses `response.body`, reconnects with bounded
+  exponential backoff and jitter, and supplies `Last-Event-ID` as a header.
 - Collection defaults: `limit=100`, maximum `250`; `cursor` is an opaque stable
   continuation token. Invalid or expired cursors return `400 invalid_cursor`.
 - Timestamps are UTC RFC 3339 strings at the API boundary. Stored legacy Unix
@@ -132,6 +137,15 @@ observation evidence.
 Capability: `events.read`. Response is `text/event-stream`. Clients send
 `Last-Event-ID` on reconnect. The server emits a heartbeat at most every 30
 seconds and caps each session's buffered events and total connections.
+
+The browser opens this route with same-origin `fetch()` and sends
+`X-Network-Scout-Token` plus `Accept: text/event-stream`. It consumes the
+response as a `ReadableStream` and implements the SSE field parsing and
+reconnection rules. Native `EventSource`, capability-bearing query parameters,
+cookies introduced solely for streaming, wildcard CORS, and token-bearing URLs
+are prohibited. The server applies the same exact Host, session, capability,
+rate, and connection-limit checks used by other sensitive reads. If the client
+sends an `Origin` header, it must be the allowed local origin.
 
 Event names: `inventory.device.upserted`, `inventory.device.state_changed`,
 `inventory.device.removed`, `topology.edge.upserted`, `topology.edge.removed`,

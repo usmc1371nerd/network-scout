@@ -119,6 +119,12 @@ maintenance, license, audit, bundle size, and integration effort.
 Decision: use bounded SSE with `Last-Event-ID`, heartbeat, and snapshot resync.
 Stage 3 has no bidirectional streaming requirement that justifies WebSockets.
 
+Browser clients consume the SSE representation with same-origin `fetch()` and
+the owner-controlled capability header, then parse the response stream. Native
+`EventSource` is not used because it cannot set that header. Tokens must not be
+placed in URLs, and this decision does not introduce cookie authentication or
+weaken Host, Origin, capability, rate, or connection-limit checks.
+
 ## ADR-020 — Unified MIT license with explicit provenance
 
 Decision: license the new owner-authorized repository under MIT and retain a
