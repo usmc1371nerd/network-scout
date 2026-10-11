@@ -290,17 +290,44 @@ def test_v1_inventory_rejects_invalid_pagination_and_cursor_mismatch(tmp_path) -
                 raise AssertionError("cursor from different filters unexpectedly accepted")
 
 
-def test_dashboard_json_ignores_client_disconnect(tmp_path) -> None:
+def test_dashboard_json_ignores_client_disconnect_at_response_boundary(tmp_path) -> None:
     handler_type = make_handler(
         tmp_path / "inventory.db", tmp_path / "config.json",
         session_token="test-session-token-that-is-long-enough-for-authentication",
     )
     handler = object.__new__(handler_type)
-    handler.wfile = type("DisconnectedWriter", (), {
-        "write": lambda self, body: (_ for _ in ()).throw(BrokenPipeError()),
-    })()
+    for error_type, during_headers in (
+        (BrokenPipeError, False),
+        (ConnectionResetError, False),
+        (BrokenPipeError, True),
+        (ConnectionResetError, True),
+    ):
+        handler.wfile = type("DisconnectedWriter", (), {
+            "write": lambda self, body, exception=error_type: (_ for _ in ()).throw(exception()),
+        })()
+        handler._headers = (
+            (lambda *args, exception=error_type, **kwargs: (_ for _ in ()).throw(exception()))
+            if during_headers else (lambda *args, **kwargs: None)
+        )
+        handler._json({"items": []})
+
+
+def test_dashboard_json_does_not_hide_unrelated_response_errors(tmp_path) -> None:
+    handler_type = make_handler(
+        tmp_path / "inventory.db", tmp_path / "config.json",
+        session_token="test-session-token-that-is-long-enough-for-authentication",
+    )
+    handler = object.__new__(handler_type)
     handler._headers = lambda *args, **kwargs: None
-    handler._json({"items": []})
+    handler.wfile = type("BrokenWriter", (), {
+        "write": lambda self, body: (_ for _ in ()).throw(RuntimeError("unrelated failure")),
+    })()
+    try:
+        handler._json({"items": []})
+    except RuntimeError as error:
+        assert str(error) == "unrelated failure"
+    else:
+        raise AssertionError("unrelated response exception was hidden")
 
 
 def test_consistent_backup_and_validated_restore(tmp_path) -> None:

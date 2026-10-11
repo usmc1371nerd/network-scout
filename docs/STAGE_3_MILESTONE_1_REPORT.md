@@ -106,3 +106,33 @@ behavior and browser frame-rate profiling at 1,000 nodes were not manually
 tested. Cursor time-expiry was not tested because Milestone 1 cursors are
 filter-bound pagination tokens without a TTL; malformed and context-invalid
 cursors were covered.
+
+### Pre-merge observation follow-up
+
+The reported five-versus-four discrepancy was a viewport presentation issue,
+not a missing record or React rendering failure. The fifth node occupied the
+fifth column of the deterministic grid and remained reachable by the existing
+Space+Drag panning control, but a narrow initial viewport clipped that column.
+Live mode now calculates a transient fit transform after inventory load and
+provides a keyboard-accessible **Fit devices** control. The calculation covers
+all loaded nodes through the 1,000-node limit. It does not store coordinates,
+write inventory, add migration 7, or affect Simulation mode layout.
+
+A 900×700 headless Chromium reproduction with five schema-6 inventory records
+showed all five nodes simultaneously in the initial Live viewport. Targeted
+geometry tests cover the five-node narrow viewport and the 1,000-node bound;
+Space+Drag panning and Ctrl+Scroll zoom remain available.
+
+The observed `BrokenPipeError` is consistent with an expected browser-side
+disconnect: navigation, cancellation, or a React development remount can close
+an in-flight local response. The response boundary catches only
+`BrokenPipeError` and `ConnectionResetError` while emitting headers or writing
+the body. It does not retry the response, log request context or capability
+material, or suppress unrelated exceptions. Regression coverage exercises both
+disconnect types during both header and body writes and proves an unrelated
+`RuntimeError` still propagates.
+
+After these checks, 57 observer tests and 7 frontend tests passed, along with
+the production build, Python compilation, `git diff --check`, npm audit, and
+Python dependency audit. A scoped security diff review found no reportable
+security issues in the viewport changes.

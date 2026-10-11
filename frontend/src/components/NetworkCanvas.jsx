@@ -1,9 +1,10 @@
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   getConnectionSecurityInsights,
   getDeviceSecurityInsights,
 } from "../securityInsights";
+import { fitDevicesToViewport } from "../canvasViewport";
 
 const DEVICE_ICONS = {
   pc: "💻",
@@ -146,6 +147,23 @@ export default function NetworkCanvas({
   const [canvasScale, setCanvasScale] = useState(1);
   const [canvasPan, setCanvasPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
+
+  const fitToView = useCallback(() => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect || devices.length === 0) return;
+    const transform = fitDevicesToViewport(devices, rect.width, rect.height, {
+      nodeWidth: NODE_W,
+      nodeHeight: NODE_H,
+    });
+    setCanvasScale(transform.scale);
+    setCanvasPan(transform.pan);
+  }, [devices]);
+
+  useEffect(() => {
+    if (!readOnly || devices.length === 0) return undefined;
+    const frame = window.requestAnimationFrame(fitToView);
+    return () => window.cancelAnimationFrame(frame);
+  }, [devices, fitToView, readOnly]);
 
   const toWorldCoords = (clientX, clientY) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -1077,6 +1095,12 @@ export default function NetworkCanvas({
         <div className="canvas-controls-hint">
           <span>Ctrl+Scroll to zoom • Space+Drag to pan</span>
         </div>
+
+        {readOnly && devices.length > 0 && (
+          <button className="canvas-fit-button" type="button" onClick={fitToView}>
+            Fit devices
+          </button>
+        )}
 
         {securityInspector && (
           <div

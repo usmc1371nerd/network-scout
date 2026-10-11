@@ -471,6 +471,24 @@ button { cursor: pointer; border: none; background: none; font: inherit; }
   backdrop-filter: blur(6px);
 }
 
+.canvas-fit-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 7px 11px;
+  border: 1px solid #8b949e;
+  border-radius: 4px;
+  color: #f0f6fc;
+  background: rgba(22, 27, 34, 0.92);
+  z-index: 2;
+}
+.canvas-fit-button:hover,
+.canvas-fit-button:focus-visible {
+  border-color: #58a6ff;
+  outline: 2px solid #1f6feb;
+  outline-offset: 2px;
+}
+
 /* Connection lines */
 .conn-path {
   fill: none;
