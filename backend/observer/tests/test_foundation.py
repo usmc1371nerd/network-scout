@@ -6,6 +6,7 @@ import sqlite3
 import threading
 import urllib.error
 import urllib.request
+from urllib.parse import quote
 from http.server import ThreadingHTTPServer
 
 from cyber_scout.config import ConfigManager, CyberScoutConfig
@@ -13,6 +14,7 @@ from cyber_scout.database import InventoryStore, SCHEMA_VERSION
 from cyber_scout.discovery import NeighborEventAdapter, NeighborTableAdapter
 from cyber_scout.diagnostics import explain_open_port, summarize_findings
 from cyber_scout.dashboard import dashboard_snapshot, make_handler
+from cyber_scout.api_v1 import ApiValidationError, inventory_devices, parse_inventory_query
 from cyber_scout.jobs import command_for, parse_result
 from cyber_scout.maintenance import inspect_database, restore_database
 from cyber_scout import __version__, jobs
@@ -207,6 +209,98 @@ def test_dashboard_api_requires_session_and_exact_authority(tmp_path) -> None:
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_v1_inventory_projection_is_authenticated_bounded_and_preserves_ids(tmp_path) -> None:
+    token = "test-session-token-that-is-long-enough-for-authentication"
+    database = tmp_path / "inventory.db"
+    with InventoryStore(database) as store:
+        first_id = store.ingest(Observation(
+            "neighbor_table", "eth0", "192.168.1.20", "00:11:22:33:44:55",
+            hostname="printer.local", observed_at=int(__import__("time").time()),
+        ))
+        store.update_device(first_id, user_name="<img src=x onerror=alert(1)>", category="Printer")
+        store.ingest(Observation(
+            "neighbor_table", "eth0", "192.168.1.30", "00:11:22:33:44:66", observed_at=100,
+        ))
+    handler = make_handler(database, tmp_path / "config.json", session_token=token)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    url = f"http://127.0.0.1:{server.server_port}/api/v1/inventory/devices?limit=1"
+    try:
+        try:
+            urllib.request.urlopen(url)
+            assert False, "unauthenticated inventory read unexpectedly succeeded"
+        except urllib.error.HTTPError as error:
+            assert error.code == 401
+            assert json.loads(error.read())["error"]["code"] == "authentication_required"
+        request = urllib.request.Request(url, headers={"X-Network-Scout-Token": token})
+        with urllib.request.urlopen(request) as response:
+            first_page = json.loads(response.read())
+        assert len(first_page["items"]) == 1
+        assert first_page["nextCursor"]
+        assert first_page["items"][0]["id"] == first_id
+        assert first_page["items"][0]["displayName"] == "<img src=x onerror=alert(1)>"
+        next_url = url + "&cursor=" + quote(first_page["nextCursor"])
+        with urllib.request.urlopen(urllib.request.Request(
+            next_url, headers={"X-Network-Scout-Token": token}
+        )) as response:
+            second_page = json.loads(response.read())
+        assert len(second_page["items"]) == 1
+        assert second_page["items"][0]["id"] != first_id
+        bad_host = urllib.request.Request(
+            url, headers={"Host": f"attacker.example:{server.server_port}", "X-Network-Scout-Token": token}
+        )
+        try:
+            urllib.request.urlopen(bad_host)
+            assert False, "invalid authority unexpectedly succeeded"
+        except urllib.error.HTTPError as error:
+            assert error.code == 421
+            assert json.loads(error.read())["error"]["code"] == "invalid_authority"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_v1_inventory_rejects_invalid_pagination_and_cursor_mismatch(tmp_path) -> None:
+    for query, field in (({"limit": ["0"]}, "limit"), ({"limit": ["251"]}, "limit"),
+                         ({"limit": ["nope"]}, "limit"), ({"limit": ["1", "2"]}, "limit"),
+                         ({"extra": ["1"]}, "extra")):
+        try:
+            parse_inventory_query(query)
+        except ApiValidationError as error:
+            assert error.field == field
+        else:
+            raise AssertionError("invalid query unexpectedly accepted")
+    with InventoryStore(tmp_path / "inventory.db") as store:
+        device_id = store.ingest(Observation(
+            "neighbor_table", "eth0", "192.168.1.20", "00:11:22:33:44:55", observed_at=100,
+        ))
+        first = inventory_devices(store, {"limit": ["1"]}, now=200)
+        assert first["items"][0]["id"] == device_id
+        if first["nextCursor"]:
+            try:
+                inventory_devices(store, {"limit": ["1"], "search": ["different"],
+                                          "cursor": [first["nextCursor"]]}, now=200)
+            except ApiValidationError as error:
+                assert error.code == "invalid_cursor"
+            else:
+                raise AssertionError("cursor from different filters unexpectedly accepted")
+
+
+def test_dashboard_json_ignores_client_disconnect(tmp_path) -> None:
+    handler_type = make_handler(
+        tmp_path / "inventory.db", tmp_path / "config.json",
+        session_token="test-session-token-that-is-long-enough-for-authentication",
+    )
+    handler = object.__new__(handler_type)
+    handler.wfile = type("DisconnectedWriter", (), {
+        "write": lambda self, body: (_ for _ in ()).throw(BrokenPipeError()),
+    })()
+    handler._headers = lambda *args, **kwargs: None
+    handler._json({"items": []})
 
 
 def test_consistent_backup_and_validated_restore(tmp_path) -> None:
