@@ -1,0 +1,31 @@
+[Unit]
+Description=Cyber Scout loopback dashboard
+Documentation=file://@PROJECT_DIR@/OPERATIONS.md
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=@PROJECT_DIR@
+Environment=PYTHONPATH=@PROJECT_DIR@
+ExecStart=/usr/bin/python3 -B -m cyber_scout.dashboard --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=10s
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.config/cyber-scout %h/.local/share/cyber-scout %h/.local/state/cyber-scout
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+TasksMax=32
+LimitNOFILE=1024
+MemoryMax=192M
+CPUQuota=25%
+
+[Install]
+WantedBy=default.target

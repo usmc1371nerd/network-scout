@@ -1,0 +1,20 @@
+Network Scout migration provenance
+==================================
+
+This repository was established from code owned by the same GitHub account and
+copied with the repository owner's explicit authorization on 2026-10-10.
+
+Source snapshots:
+
+- https://github.com/usmc1371nerd/omarchy-cyber-scout-widget
+  - migrated into `backend/observer` and `integrations/omarchy`
+  - supplied discovery, inventory, diagnostics, monitoring, dashboard, packaging,
+    and Omarchy integration code
+- https://github.com/usmc1371nerd/network-lab
+  - migrated into `frontend` and `simulation/backend`
+  - supplied the React canvas and isolated educational simulator
+
+Neither source repository declared a GitHub-detectable license at migration
+time. The MIT License in this repository applies to the unified repository as
+authorized by its owner; this notice preserves source attribution and does not
+retroactively alter the historical repositories.

@@ -1,0 +1,31 @@
+[Unit]
+Description=Cyber Scout passive LAN observer
+Documentation=file://@PROJECT_DIR@/OPERATIONS.md
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=@PROJECT_DIR@
+Environment=PYTHONPATH=@PROJECT_DIR@
+ExecStart=/usr/bin/python3 -B -m cyber_scout.monitor
+Restart=on-failure
+RestartSec=10s
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.cache/cyber-scout %h/.config/cyber-scout %h/.local/share/cyber-scout %h/.local/state/cyber-scout
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+TasksMax=64
+LimitNOFILE=1024
+MemoryMax=256M
+CPUQuota=50%
+
+[Install]
+WantedBy=default.target

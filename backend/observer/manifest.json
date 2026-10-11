@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "hackerdad.lan-devices",
+  "name": "LAN Devices",
+  "version": "1.5.0",
+  "author": "hackerdad",
+  "description": "Local network inventory with bounded diagnostics and optional Zeek/Suricata metadata",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "LAN Devices",
+    "description": "Discover devices on the active local network",
+    "category": "Network",
+    "aliases": [
+      "lan",
+      "network devices",
+      "device scanner"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
