@@ -71,3 +71,38 @@ requires measured evidence and a later approved decision.
 No migration 7, topology edges, layout writes, SSE, SSH, remote administration,
 AI interoperability, generic command execution, simulated-to-live execution,
 or active-scanning changes were added.
+
+## Final pre-merge validation
+
+PR #3 was exercised end to end with a disposable schema-6 SQLite inventory and
+a non-sensitive test capability. Isolated backend and Vite processes listened
+only on `127.0.0.1`. Authenticated paging returned stable, unique persistent
+IDs; missing and invalid capabilities returned 401; malformed and
+filter-mismatched cursors returned 400; and an invalid Host returned 421.
+
+Headless Chromium verified authenticated Live rendering for 50, 250, 500, and
+1,000 synthetic records. Empty and malformed responses produced the intended
+empty/backend-unavailable states. A hostile HTML/event-handler label appeared
+only as escaped text. The Live DOM exposed no simulator palette, terminal, or
+device mutation controls, and its requests were limited to the read-only
+inventory endpoint. Browser output and backend logs contained neither the test
+capability nor hostile-label execution.
+
+Browser cancellation during development remounts exposed a noisy
+`BrokenPipeError` in the local HTTP server. Response writing now treats client
+disconnect/reset as a completed, unusable response rather than retrying or
+logging a traceback; a regression test covers the behavior.
+
+Post-correction verification: 56 observer tests, 5 frontend tests, and 4
+simulator tests passed; the production build, Python compilation,
+`git diff --check`, npm audit, and Python dependency audit also passed. The
+simulator suite initially could not collect under the system Python because its
+Flask dependencies were not installed globally; it passed in the project's
+prepared dependency environment.
+
+Manual visual inspection of the 50-record browser capture confirmed readable
+Live nodes and a separate Simulation Lab selector. Interactive pointer/keyboard
+behavior and browser frame-rate profiling at 1,000 nodes were not manually
+tested. Cursor time-expiry was not tested because Milestone 1 cursors are
+filter-bound pagination tokens without a TTL; malformed and context-invalid
+cursors were covered.

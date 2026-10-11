@@ -290,6 +290,19 @@ def test_v1_inventory_rejects_invalid_pagination_and_cursor_mismatch(tmp_path) -
                 raise AssertionError("cursor from different filters unexpectedly accepted")
 
 
+def test_dashboard_json_ignores_client_disconnect(tmp_path) -> None:
+    handler_type = make_handler(
+        tmp_path / "inventory.db", tmp_path / "config.json",
+        session_token="test-session-token-that-is-long-enough-for-authentication",
+    )
+    handler = object.__new__(handler_type)
+    handler.wfile = type("DisconnectedWriter", (), {
+        "write": lambda self, body: (_ for _ in ()).throw(BrokenPipeError()),
+    })()
+    handler._headers = lambda *args, **kwargs: None
+    handler._json({"items": []})
+
+
 def test_consistent_backup_and_validated_restore(tmp_path) -> None:
     path = tmp_path / "inventory.db"
     with InventoryStore(path) as store:

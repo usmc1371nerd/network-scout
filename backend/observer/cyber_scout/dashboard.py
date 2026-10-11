@@ -99,8 +99,14 @@ def make_handler(database: Path | str = DEFAULT_DATABASE,
 
         def _json(self, value: object, status: int = 200, *, download: str | None = None) -> None:
             body = json.dumps(value, separators=(",", ":"), ensure_ascii=False).encode()
-            self._headers(status, "application/json; charset=utf-8", length=len(body), download=download)
-            self.wfile.write(body)
+            try:
+                self._headers(status, "application/json; charset=utf-8", length=len(body), download=download)
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError):
+                # Browsers may cancel an in-flight snapshot during navigation or
+                # React development remounts. The response is already unusable;
+                # do not retry it or emit a traceback containing request context.
+                return
 
         def _scope(self, query: dict[str, list[str]]) -> tuple[str, list[str] | None]:
             scope = query.get("scope", ["current"])[0]
