@@ -125,6 +125,7 @@ export default function NetworkCanvas({
   onRemoveDevice,
   onAddConnection,
   onUpdateConnection,
+  readOnly = false,
 }) {
   const canvasRef = useRef(null);
   const draggingRef = useRef(null);
@@ -186,6 +187,7 @@ export default function NetworkCanvas({
   /* ── canvas drop ──────────────────────────────────────────── */
   const onCanvasDrop = (e) => {
     e.preventDefault();
+    if (readOnly) return;
     const type = e.dataTransfer.getData("deviceType");
     if (!type) return;
     const world = toWorldCoords(e.clientX, e.clientY);
@@ -196,6 +198,7 @@ export default function NetworkCanvas({
 
   /* ── device drag within canvas ────────────────────────────── */
   const onDeviceMouseDown = (e, device) => {
+    if (readOnly) return;
     if (connectMode) return;
     if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") return;
     e.stopPropagation();
@@ -289,6 +292,7 @@ export default function NetworkCanvas({
   /* ── device click ─────────────────────────────────────────── */
   const onDeviceClick = (e, device) => {
     e.stopPropagation();
+    if (readOnly) return;
     if (connectMode) {
       if (!connectSource) {
         setConnectSource(device.id);
@@ -473,6 +477,7 @@ export default function NetworkCanvas({
   return (
     <div className="canvas-wrapper">
       {/* ── Palette ── */}
+      {!readOnly && (
       <div className="palette">
         <div className="palette-title">Devices</div>
         <div className="palette-actions">
@@ -765,6 +770,7 @@ export default function NetworkCanvas({
           )}
         </div>
       </div>
+      )}
 
       {/* ── Canvas ── */}
       <div
@@ -965,12 +971,14 @@ export default function NetworkCanvas({
             key={device.id}
             className={`device-node device-${device.type}${
               connectSource === device.id ? " connect-source" : ""
-            }`}
+            }${readOnly ? ` live-device-node state-${device.status || "unknown"}` : ""}`}
             style={{ left: device.x, top: device.y, width: NODE_W, height: NODE_H }}
             onMouseDown={(e) => onDeviceMouseDown(e, device)}
             onClick={(e) => onDeviceClick(e, device)}
+            role={readOnly ? "group" : undefined}
+            aria-label={readOnly ? `${device.name}, ${device.status || "unknown"}, ${device.ip || "no current address"}` : undefined}
           >
-            <button
+            {!readOnly && <button
               className="device-delete"
               title="Remove device"
               onClick={(e) => {
@@ -979,8 +987,8 @@ export default function NetworkCanvas({
               }}
             >
               ×
-            </button>
-            <button
+            </button>}
+            {!readOnly && <button
               className="device-insight"
               title="View security insight"
               onClick={(e) => {
@@ -989,11 +997,11 @@ export default function NetworkCanvas({
               }}
             >
               i
-            </button>
+            </button>}
             <span className="device-icon">{DEVICE_ICONS[device.type]}</span>
             <div className="device-info">
               <div className="device-name">{device.name}</div>
-              {!NON_IP_CAPABLE_TYPES.has(device.type) && (
+              {!readOnly && !NON_IP_CAPABLE_TYPES.has(device.type) && (
                 <>
                   <div className="device-traffic">
                     <span className="traffic-label">DEV</span>
@@ -1007,7 +1015,14 @@ export default function NetworkCanvas({
                   </div>
                 </>
               )}
-              {NON_IP_CAPABLE_TYPES.has(device.type) ? (
+              {readOnly ? (
+                <>
+                  <div className={`live-device-status state-${device.status || "unknown"}`}>
+                    {device.status || "unknown"}
+                  </div>
+                  <div className="device-ip">{device.ip || "No current address"}</div>
+                </>
+              ) : NON_IP_CAPABLE_TYPES.has(device.type) ? (
                 <div className="device-ip" title="Peripheral endpoint (no IP)">
                   <span className="ip-placeholder">non-IP peripheral</span>
                 </div>
@@ -1038,7 +1053,11 @@ export default function NetworkCanvas({
                   )}
                 </div>
               )}
-              {!NON_IP_CAPABLE_TYPES.has(device.type) && device.type !== "switch" && (
+              {readOnly ? (
+                <div className="device-meta">
+                  {device.manufacturer || device.category || "unknown"} · {device.recognition || "unrecognized"}
+                </div>
+              ) : !NON_IP_CAPABLE_TYPES.has(device.type) && device.type !== "switch" && (
                 <div className="device-meta" title="Layer-2 / ARP cache summary">
                   <span className="device-meta-item">MAC: {device.mac || "unassigned"}</span>
                   <span className="device-meta-item">ARP entries: {Object.keys(device.arp_table || {}).length}</span>
@@ -1051,7 +1070,7 @@ export default function NetworkCanvas({
         </div>
 
         <div className="canvas-start-hint">
-          <span>← Drag a device onto the canvas to begin</span>
+          <span>{readOnly ? "Live inventory is read-only · topology links are unknown" : "← Drag a device onto the canvas to begin"}</span>
         </div>
 
         {/* Zoom/Pan hints */}

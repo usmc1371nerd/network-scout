@@ -6,10 +6,13 @@ import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import secrets
+import sqlite3
 import time
 from urllib.parse import parse_qs, urlsplit
 
 from .database import DEFAULT_DATABASE, InventoryStore
+from .api_v1 import ApiValidationError, inventory_devices
 from .config import DEFAULT_CONFIG, ConfigManager, CyberScoutConfig
 from .runtime import runtime_logger
 from .scope import current_ipv4_scopes
@@ -112,6 +115,15 @@ def make_handler(database: Path | str = DEFAULT_DATABASE,
         def _authenticated(self) -> bool:
             return token_matches(self.headers.get("X-Cyber-Scout-Token"), csrf_token)
 
+        def _authenticated_v1(self) -> bool:
+            return token_matches(self.headers.get("X-Network-Scout-Token"), csrf_token)
+
+        def _api_error(self, status: int, code: str, message: str, *, field: str | None = None) -> None:
+            error = {"code": code, "message": message, "requestId": secrets.token_hex(8)}
+            if field:
+                error["fields"] = [{"path": field, "code": code}]
+            self._json({"error": error}, status)
+
         def _visible_ids(self, store: InventoryStore, networks: list[str] | None) -> set[str]:
             return {item["id"] for item in store.list_devices(networks=networks, limit=1000)}
 
@@ -119,7 +131,10 @@ def make_handler(database: Path | str = DEFAULT_DATABASE,
             request = urlsplit(self.path)
             try:
                 if not self._valid_host():
-                    self._json({"error": "Invalid request authority"}, 421)
+                    if request.path.startswith("/api/v1/"):
+                        self._api_error(421, "invalid_authority", "The request authority is not allowed.")
+                    else:
+                        self._json({"error": "Invalid request authority"}, 421)
                     return
                 if request.path in {"/", "/index.html"}:
                     body = ASSET.read_bytes()
@@ -130,6 +145,22 @@ def make_handler(database: Path | str = DEFAULT_DATABASE,
                     body = ASSET.with_name("dashboard.js").read_bytes()
                     self._headers(200, "text/javascript; charset=utf-8", length=len(body))
                     self.wfile.write(body)
+                    return
+                if request.path.startswith("/api/v1/"):
+                    if not self._authenticated_v1():
+                        self._api_error(401, "authentication_required", "Authentication is required.")
+                        return
+                    if request.path != "/api/v1/inventory/devices":
+                        self._api_error(404, "not_found", "The requested resource was not found.")
+                        return
+                    try:
+                        query = parse_qs(request.query, keep_blank_values=True)
+                        with InventoryStore(database) as store:
+                            self._json(inventory_devices(store, query))
+                    except ApiValidationError as error:
+                        self._api_error(400, error.code, error.message, field=error.field)
+                    except (OSError, RuntimeError, sqlite3.Error, UnicodeError):
+                        self._api_error(500, "internal_error", "The inventory could not be loaded.")
                     return
                 if request.path.startswith("/api/") and not self._authenticated():
                     self._json({"error": "Authentication required"}, 401)

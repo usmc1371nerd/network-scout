@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import NetworkCanvas from "./components/NetworkCanvas";
 import Terminal from "./components/Terminal";
 import PacketLog from "./components/PacketLog";
+import LiveNetwork from "./LiveNetwork";
 
 let _id = 1;
 const uid = () => String(_id++);
@@ -56,7 +57,7 @@ const DEFAULT_LINK_CONDITIONS = {
   blocked: false,
 };
 
-export default function App() {
+function SimulationApp() {
   const [devices, setDevices] = useState([]);
   const [connections, setConnections] = useState([]);
   const [capturedPackets, setCapturedPackets] = useState([]);
@@ -567,6 +568,19 @@ export default function App() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [mode, setMode] = useState("live");
+  return (
+    <div className="mode-shell">
+      <nav className="mode-switcher" aria-label="Application mode">
+        <button className={mode === "live" ? "active" : ""} onClick={() => setMode("live")}>Live Network</button>
+        <button className={mode === "simulation" ? "active" : ""} onClick={() => setMode("simulation")}>Simulation Lab</button>
+      </nav>
+      {mode === "live" ? <LiveNetwork /> : <SimulationApp />}
     </div>
   );
 }
